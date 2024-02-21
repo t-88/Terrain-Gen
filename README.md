@@ -1,5 +1,7 @@
 # Terrain-Gen
 
 
-# Quick Start
-- bash install.sh 
+## Quick Start
+- `$ bash install.sh` 
+- `$ make`
+
