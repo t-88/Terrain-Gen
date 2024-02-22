@@ -1,3 +1,5 @@
 build/*
 *.o_c
 *.o_cpp
+*.o
+.vscode
