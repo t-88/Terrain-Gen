@@ -5,12 +5,15 @@
 #include <glm/gtc/type_ptr.hpp>
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <fstream>
 #include <vector>
 #include <array>
 
 #include "shader.hpp"
 #include "camera.hpp"
+#include "vertex.hpp"
+#include "terrain_generator.hpp"
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
@@ -35,7 +38,11 @@ GlobalState gstate;
 
 
 
-void on_mouse_move(GLFWwindow* window, double x,double y) {
+
+
+
+void on_mouse_move(GLFWwindow* window, double x,double y) 
+{
     gstate.camera.on_mouse_move(x,y);
 }
 GLFWwindow *glfw_init(int width, int height)
@@ -96,45 +103,45 @@ std::vector<float> load_height_map(const char *path)
 
 
 
-struct Vertex {
-    float x, y, z;
-};
-
 
 int main()
 {
     gstate.window = glfw_init(WIDTH, HEIGHT);
     glfwSetInputMode(gstate.window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
+    glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
 
 
+    float terrain_max_h = 200 , terrain_min_h = 0;
+    int terrain_size = 200;
+    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.2); 
 
-    std::vector<float> height_map_data = load_height_map("res/heightmap.data");
-    int height_map_dim = std::sqrt(height_map_data.size());
-    std::vector<uint32_t> indices;
 
-    for (size_t z = 0; z < height_map_dim - 1; z++) {
-        for (size_t x = 0; x < height_map_dim - 1; x++) {
-            indices.push_back(z * height_map_dim + x);
-            indices.push_back((z + 1) * height_map_dim + x);
-            indices.push_back((z + 1) * height_map_dim + x + 1);
-
-            indices.push_back(z * height_map_dim + x);
-            indices.push_back((z + 1) * height_map_dim + x + 1);
-            indices.push_back(z * height_map_dim + x + 1);
-        }
-    }
-    
 
     std::vector<Vertex> points;
-    for (int x = 0; x < height_map_dim; x++) {
-        for (int z = 0; z < height_map_dim; z++) {
+    for (int x = 0; x < terrain_size; x++) {
+        for (int z = 0; z < terrain_size; z++) {
             points.push_back((Vertex) {
-                .x =  (float)(x - height_map_dim / 2) * gstate.world_scale ,
-                .y = height_map_data[x +z * height_map_dim],
-                .z =  (float)(z - height_map_dim / 2) * gstate.world_scale,
+                .x =  (float)(x - terrain_size / 2) * gstate.world_scale ,
+                .y = height_map_data[x +z * terrain_size],
+                .z =  (float)(z - terrain_size / 2) * gstate.world_scale,
             });
         }
     }
+    
+    
+    std::vector<uint32_t> indices;
+    for (size_t z = 0; z < terrain_size - 1; z++) {
+        for (size_t x = 0; x < terrain_size - 1; x++) {
+            indices.push_back(z * terrain_size + x);
+            indices.push_back((z + 1) * terrain_size + x);
+            indices.push_back((z + 1) * terrain_size + x + 1);
+
+            indices.push_back(z * terrain_size + x);
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back(z * terrain_size + x + 1);
+        }
+    }
+    
 
     uint32_t vao;
     uint32_t vbo;
@@ -168,6 +175,7 @@ int main()
 
         shader.set_mat4x4("mtx_proj",glm::value_ptr(mtx_proj));
         shader.set_mat4x4("mtx_model",glm::value_ptr(mtx_model));        
+        shader.set_float("height_delta",terrain_max_h - terrain_min_h);        
     }
 
     gstate.camera = Camera(glm::vec3(0,300,10),glm::vec3(0,-1,-1),glm::vec3(0,1,0));

@@ -5,6 +5,7 @@ in vec3 frag_pos;
 out vec4 FragColor;
 
 
+uniform float height_delta; 
 void main() {
-    FragColor = vec4(vec3(frag_pos.y) / 200,1.);
+    FragColor = vec4(vec3(frag_pos.y) / height_delta,1.);
 }
