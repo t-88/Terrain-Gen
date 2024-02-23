@@ -14,7 +14,11 @@ public:
     glm::vec3 front;
     glm::vec3 up;
 
-    float speed = 0.5f;
+    float default_speed = 0.5f;
+    float speed_multiplier = 4;
+    float speed;
+
+
     float last_x = 0;
     float last_y = 0;
 
@@ -23,12 +27,22 @@ public:
 
 
 
-    Camera() {}
     ~Camera() {}
-    Camera(glm::vec3 _pos,glm::vec3 _front,glm::vec3 _up) : pos(_pos),front(_front),up(_up) {}
+    Camera() {
+        speed = default_speed;
+    }
+    Camera(glm::vec3 _pos,glm::vec3 _front,glm::vec3 _up) : pos(_pos),front(_front),up(_up) {
+        speed = default_speed;
+    }
 
 
     void on_key_press(GLFWwindow* window) {
+        if(glfwGetKey(window,GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS) {
+            speed = default_speed  * speed_multiplier;
+        } else {
+            speed = default_speed;
+        }
+
         if(glfwGetKey(window,GLFW_KEY_S) == GLFW_PRESS) {
             pos -=  speed * front;
         } else if(glfwGetKey(window,GLFW_KEY_W) == GLFW_PRESS) {

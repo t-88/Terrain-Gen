@@ -20,6 +20,7 @@ static const float FAR_PLANE = 1000.;
 typedef struct GlobalState {
     GLFWwindow* window;
     Camera camera;
+    int world_scale = 4;
 
     GlobalState() {}
     ~GlobalState() {}
@@ -128,9 +129,9 @@ int main()
     for (int x = 0; x < height_map_dim; x++) {
         for (int z = 0; z < height_map_dim; z++) {
             points.push_back((Vertex) {
-                .x =  (float)(x - height_map_dim / 2),
+                .x =  (float)(x - height_map_dim / 2) * gstate.world_scale ,
                 .y = height_map_data[x +z * height_map_dim],
-                .z =  (float)(z - height_map_dim / 2),
+                .z =  (float)(z - height_map_dim / 2) * gstate.world_scale,
             });
         }
     }
@@ -169,10 +170,10 @@ int main()
         shader.set_mat4x4("mtx_model",glm::value_ptr(mtx_model));        
     }
 
-    gstate.camera = Camera(glm::vec3(0,100,10),glm::vec3(0,-1,-1),glm::vec3(0,1,0));
+    gstate.camera = Camera(glm::vec3(0,300,10),glm::vec3(0,-1,-1),glm::vec3(0,1,0));
 
     glEnable(GL_DEPTH_TEST);
-    glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
+    // glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
     while (!glfwWindowShouldClose(gstate.window))
     {
         glfwPollEvents();
