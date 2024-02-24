@@ -28,7 +28,7 @@ static const float FAR_PLANE = 1000.;
 typedef struct GlobalState {
     GLFWwindow* window;
     Camera camera;
-    int world_scale = 4;
+    int world_scale = 2;
 
     GlobalState() {}
     ~GlobalState() {}
@@ -114,20 +114,24 @@ int main()
 
     float terrain_max_h = 200 , terrain_min_h = 0;
     int terrain_size = 400;
-    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.5); 
+    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,400,terrain_max_h,terrain_min_h,0.8); 
 
 
+    
 
-    std::vector<Vertex> points;
+    std::vector<Vertex> points(terrain_size * terrain_size);
+    std::vector<glm::vec3> positions(terrain_size*terrain_size,glm::vec3(0,0,0));
+    std::vector<glm::vec3> texture_coords(terrain_size*terrain_size,glm::vec3(0,0,0));
+    std::vector<glm::vec3> normals(terrain_size*terrain_size,glm::vec3(0,0,0));
+
     for (int x = 0; x < terrain_size; x++) {
         for (int z = 0; z < terrain_size; z++) {
-            points.push_back((Vertex) {
-                .x =  (float)(x - terrain_size / 2) * gstate.world_scale ,
-                .y = height_map_data[x +z * terrain_size],
-                .z =  (float)(z - terrain_size / 2) * gstate.world_scale,
-                .u = (x / (float)terrain_size),
-                .v = (z / (float)terrain_size),
-            });
+            positions[x + z * terrain_size].x =  (float)(x - terrain_size / 2) * gstate.world_scale;
+            positions[x + z * terrain_size].y = height_map_data[x +z * terrain_size];
+            positions[x + z * terrain_size].z =  (float)(z - terrain_size / 2) * gstate.world_scale;
+        
+            texture_coords[x + z * terrain_size].x = (x / (float)terrain_size);
+            texture_coords[x + z * terrain_size].y = (z / (float)terrain_size);
         }
     }
     
@@ -143,6 +147,40 @@ int main()
             indices.push_back((z + 1) * terrain_size + x + 1);
             indices.push_back(z * terrain_size + x + 1);
         }
+    }
+    
+    for (size_t i = 0; i < indices.size() / 3; i++) {
+        int a_idx = indices[3 * i + 0];
+        int b_idx = indices[3 * i + 1];
+        int c_idx = indices[3 * i + 2];
+
+        glm::vec3 a = positions[a_idx];
+        glm::vec3 b = positions[b_idx];
+        glm::vec3 c = positions[c_idx];
+    
+        glm::vec3 ab = a - b;
+        glm::vec3 ac = a - c;
+        glm::vec3 normal = glm::cross(ab,ac);
+        
+        normals[a_idx] = normal;
+        normals[b_idx] = normal;
+        normals[c_idx] = normal;
+    }    
+
+
+    for (size_t i = 0; i < terrain_size * terrain_size; i++) {
+        points[i] = (Vertex){
+            .x = positions[i].x,
+            .y = positions[i].y,
+            .z = positions[i].z,
+
+            .nx = normals[i].x,
+            .ny = normals[i].y,
+            .nz = normals[i].y,
+
+            .u = texture_coords[i].x,
+            .v = texture_coords[i].y,
+        };
     }
     
 
@@ -168,9 +206,10 @@ int main()
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(indices[0]), indices.data(), GL_STATIC_DRAW);
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(0 * sizeof(float)));
         glEnableVertexAttribArray(0);
-        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
-
+        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));
+        glEnableVertexAttribArray(2);
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -186,6 +225,9 @@ int main()
         shader.set_mat4x4("mtx_model",glm::value_ptr(mtx_model));        
         shader.set_float("max_h",terrain_max_h);        
         shader.set_float("min_h",terrain_min_h - 150); 
+
+        glm::vec3 light_dir = glm::normalize(glm::vec3(1,1,1));
+        shader.set_vec3("light_dir",{light_dir[0],light_dir[1],light_dir[2]}); 
 
 
         snow_texture.from_file("res/snow.png");
