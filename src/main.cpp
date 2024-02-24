@@ -6,14 +6,19 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <fstream>
 #include <vector>
 #include <array>
 
 #include "shader.hpp"
 #include "camera.hpp"
+#include "texture.hpp"
 #include "vertex.hpp"
 #include "terrain_generator.hpp"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
@@ -33,8 +38,6 @@ typedef struct GlobalState {
     }
 } GlobalState;
 GlobalState gstate;
-
-
 
 
 
@@ -101,19 +104,17 @@ std::vector<float> load_height_map(const char *path)
     return file_data;
 }
 
-
-
-
 int main()
 {
+    srand(time(0));
+    
     gstate.window = glfw_init(WIDTH, HEIGHT);
     glfwSetInputMode(gstate.window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
     glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
 
-
     float terrain_max_h = 200 , terrain_min_h = 0;
-    int terrain_size = 200;
-    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.2); 
+    int terrain_size = 400;
+    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.5); 
 
 
 
@@ -124,6 +125,8 @@ int main()
                 .x =  (float)(x - terrain_size / 2) * gstate.world_scale ,
                 .y = height_map_data[x +z * terrain_size],
                 .z =  (float)(z - terrain_size / 2) * gstate.world_scale,
+                .u = (x / (float)terrain_size),
+                .v = (z / (float)terrain_size),
             });
         }
     }
@@ -147,6 +150,10 @@ int main()
     uint32_t vbo;
     uint32_t ebo;
     Shader shader;
+    Texture snow_texture;
+    Texture grass_texture;
+    Texture desert_texture;
+    Texture ground_texture;
     {
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
@@ -155,14 +162,16 @@ int main()
         glBindVertexArray(vao);
         glBindBuffer(GL_ARRAY_BUFFER, vbo);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+
         
         glBufferData(GL_ARRAY_BUFFER, points.size() * sizeof(points[0]), points.data(), GL_STATIC_DRAW);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(indices[0]), indices.data(), GL_STATIC_DRAW);
-        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), 0);
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(0 * sizeof(float)));
         glEnableVertexAttribArray(0);
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(3 * sizeof(float)));
+        glEnableVertexAttribArray(1);
 
 
-        
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
         glBindVertexArray(0);
@@ -175,7 +184,20 @@ int main()
 
         shader.set_mat4x4("mtx_proj",glm::value_ptr(mtx_proj));
         shader.set_mat4x4("mtx_model",glm::value_ptr(mtx_model));        
-        shader.set_float("height_delta",terrain_max_h - terrain_min_h);        
+        shader.set_float("max_h",terrain_max_h);        
+        shader.set_float("min_h",terrain_min_h - 150); 
+
+
+        snow_texture.from_file("res/snow.png");
+        grass_texture.from_file("res/grass_seamless.png");
+        desert_texture.from_file("res/desert_seamless.jpg");
+        ground_texture.from_file("res/ground_seamless.jpg");
+    
+        shader.set_int("snow_texture",0);
+        shader.set_int("grass_texture",1);
+        shader.set_int("ground_texture",2);
+        shader.set_int("desert_texture",3);
+
     }
 
     gstate.camera = Camera(glm::vec3(0,300,10),glm::vec3(0,-1,-1),glm::vec3(0,1,0));
@@ -196,9 +218,17 @@ int main()
         shader.enable();
         shader.set_mat4x4("mtx_view",glm::value_ptr(mtx_view));
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D,snow_texture.ID);        
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D,grass_texture.ID);        
+        glActiveTexture(GL_TEXTURE2);
+        glBindTexture(GL_TEXTURE_2D,ground_texture.ID);        
+        glActiveTexture(GL_TEXTURE3);
+        glBindTexture(GL_TEXTURE_2D,desert_texture.ID);        
 
-        glBindVertexArray(vao);
         glDrawElements(GL_TRIANGLES,indices.size(),GL_UNSIGNED_INT,indices.data());
+        glBindVertexArray(vao);
 
         glfwSwapBuffers(gstate.window);
         glClearColor(0., 0., 0., 1.);
