@@ -104,38 +104,7 @@ std::vector<float> load_height_map(const char *path)
     return file_data;
 }
 
-int main()
-{
-    srand(time(0));
-    
-    gstate.window = glfw_init(WIDTH, HEIGHT);
-    glfwSetInputMode(gstate.window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
-    glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
-
-    float terrain_max_h = 200 , terrain_min_h = 0;
-    int terrain_size = 400;
-    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,400,terrain_max_h,terrain_min_h,0.8); 
-
-
-    
-
-    std::vector<Vertex> points(terrain_size * terrain_size);
-    std::vector<glm::vec3> positions(terrain_size*terrain_size,glm::vec3(0,0,0));
-    std::vector<glm::vec3> texture_coords(terrain_size*terrain_size,glm::vec3(0,0,0));
-    std::vector<glm::vec3> normals(terrain_size*terrain_size,glm::vec3(0,0,0));
-
-    for (int x = 0; x < terrain_size; x++) {
-        for (int z = 0; z < terrain_size; z++) {
-            positions[x + z * terrain_size].x =  (float)(x - terrain_size / 2) * gstate.world_scale;
-            positions[x + z * terrain_size].y = height_map_data[x +z * terrain_size];
-            positions[x + z * terrain_size].z =  (float)(z - terrain_size / 2) * gstate.world_scale;
-        
-            texture_coords[x + z * terrain_size].x = (x / (float)terrain_size);
-            texture_coords[x + z * terrain_size].y = (z / (float)terrain_size);
-        }
-    }
-    
-    
+std::vector<uint32_t> generate_indices(int terrain_size) {
     std::vector<uint32_t> indices;
     for (size_t z = 0; z < terrain_size - 1; z++) {
         for (size_t x = 0; x < terrain_size - 1; x++) {
@@ -148,7 +117,10 @@ int main()
             indices.push_back(z * terrain_size + x + 1);
         }
     }
-    
+    return indices;
+}
+std::vector<glm::vec3> generat_normals_from_indices(std::vector<uint32_t> indices,std::vector<glm::vec3> positions) {
+    std::vector<glm::vec3> normals(positions.size());
     for (size_t i = 0; i < indices.size() / 3; i++) {
         int a_idx = indices[3 * i + 0];
         int b_idx = indices[3 * i + 1];
@@ -166,10 +138,12 @@ int main()
         normals[b_idx] = normal;
         normals[c_idx] = normal;
     }    
-
-
+    return normals;
+}
+std::vector<Vertex> generate_vertex_buffer(int terrain_size,std::vector<glm::vec3> positions,std::vector<glm::vec3> normals,std::vector<glm::vec2> texture_coords) {
+    std::vector<Vertex> vertices(terrain_size * terrain_size);
     for (size_t i = 0; i < terrain_size * terrain_size; i++) {
-        points[i] = (Vertex){
+        vertices[i] = (Vertex){
             .x = positions[i].x,
             .y = positions[i].y,
             .z = positions[i].z,
@@ -182,8 +156,45 @@ int main()
             .v = texture_coords[i].y,
         };
     }
+    return vertices;
+} 
+int main()
+{
+    srand(time(0));
+    
+    gstate.window = glfw_init(WIDTH, HEIGHT);
+    glfwSetInputMode(gstate.window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
+    glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
+
+    float terrain_max_h = 200 , terrain_min_h = 0;
+    int terrain_size = 200;
+    std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.8); 
+
+
     
 
+    std::vector<glm::vec3> positions(terrain_size*terrain_size,glm::vec3(0,0,0));
+    std::vector<glm::vec2> texture_coords(terrain_size*terrain_size,glm::vec2(0));
+    std::vector<uint32_t> indices;
+    std::vector<glm::vec3> normals;
+    std::vector<Vertex> points;
+    {
+        for (int x = 0; x < terrain_size; x++) {
+            for (int z = 0; z < terrain_size; z++) {
+                positions[x + z * terrain_size].x =  (float)(x - terrain_size / 2) * gstate.world_scale;
+                positions[x + z * terrain_size].y = height_map_data[x +z * terrain_size];
+                positions[x + z * terrain_size].z =  (float)(z - terrain_size / 2) * gstate.world_scale;
+            
+                texture_coords[x + z * terrain_size].x = (x / (float)terrain_size);
+                texture_coords[x + z * terrain_size].y = (z / (float)terrain_size);
+            }
+        }
+
+        indices = generate_indices(terrain_size);
+        normals = generat_normals_from_indices(indices,positions);
+        points = generate_vertex_buffer(terrain_size,positions,normals,texture_coords);        
+    }
+   
     uint32_t vao;
     uint32_t vbo;
     uint32_t ebo;
