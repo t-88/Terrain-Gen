@@ -104,6 +104,47 @@ std::vector<float> load_height_map(const char *path)
     return file_data;
 }
 
+std::vector<uint32_t> generate_indices_geomipmapping(int patch_size,int terrain_size) {
+    std::vector<uint32_t> indices;
+    for (int z = 0 ; z < patch_size - 1 ; z += 2) {
+        for (int x = 0 ; x < patch_size - 1 ; x += 2) {
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back(z * terrain_size + x);
+            indices.push_back((z + 1) * terrain_size + x);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back((z + 1) * terrain_size + x);
+            indices.push_back((z + 2) * terrain_size + x);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back((z + 2) * terrain_size + x);
+            indices.push_back((z + 2) * terrain_size + x + 1);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back((z + 2) * terrain_size + x + 1);
+            indices.push_back((z + 2) * terrain_size + x + 2);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back((z + 2) * terrain_size + x + 2);
+            indices.push_back((z + 1) * terrain_size + x + 2);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back((z + 1) * terrain_size + x + 2);
+            indices.push_back(z * terrain_size + x + 2);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back(z * terrain_size + x + 2);
+            indices.push_back(z * terrain_size + x + 1);
+
+            indices.push_back((z + 1) * terrain_size + x + 1);
+            indices.push_back(z * terrain_size + x + 1);
+            indices.push_back(z * terrain_size + x);
+        }
+    }
+    return indices;
+
+}
+
 std::vector<uint32_t> generate_indices(int terrain_size) {
     std::vector<uint32_t> indices;
     for (size_t z = 0; z < terrain_size - 1; z++) {
@@ -119,6 +160,7 @@ std::vector<uint32_t> generate_indices(int terrain_size) {
     }
     return indices;
 }
+
 std::vector<glm::vec3> generat_normals_from_indices(std::vector<uint32_t> indices,std::vector<glm::vec3> positions) {
     std::vector<glm::vec3> normals(positions.size());
     for (size_t i = 0; i < indices.size() / 3; i++) {
@@ -132,12 +174,40 @@ std::vector<glm::vec3> generat_normals_from_indices(std::vector<uint32_t> indice
     
         glm::vec3 ab = a - b;
         glm::vec3 ac = a - c;
-        glm::vec3 normal = glm::cross(ab,ac);
+        glm::vec3 normal = glm::normalize(glm::cross(ab,ac));
         
         normals[a_idx] = normal;
         normals[b_idx] = normal;
         normals[c_idx] = normal;
     }    
+    return normals;
+}
+std::vector<glm::vec3> generat_normals_from_indices_geomipmapping(int patch_size,std::vector<uint32_t> indices,std::vector<glm::vec3> positions) {
+    std::vector<glm::vec3> normals(positions.size());
+    int terrain_size = sqrt(positions.size());
+
+    for (size_t z = 0; z < terrain_size - 1; z += patch_size-1) {
+        for (size_t x = 0; x < terrain_size - 1; x += patch_size-1) {
+            int base_vertex = z * terrain_size + x;
+            for (size_t i = 0; i < indices.size() / 3; i++) {
+                int a_idx = base_vertex + indices[3 * i + 0];
+                int b_idx = base_vertex + indices[3 * i + 1];
+                int c_idx = base_vertex + indices[3 * i + 2];
+        
+                glm::vec3 a = positions[a_idx];
+                glm::vec3 b = positions[b_idx];
+                glm::vec3 c = positions[c_idx];
+            
+                glm::vec3 ab = a - b;
+                glm::vec3 ac = a - c;
+                glm::vec3 normal = glm::normalize(glm::cross(ab,ac));
+                
+                normals[a_idx] = normal;
+                normals[b_idx] = normal;
+                normals[c_idx] = normal;
+            }                
+        }
+    }
     return normals;
 }
 std::vector<Vertex> generate_vertex_buffer(int terrain_size,std::vector<glm::vec3> positions,std::vector<glm::vec3> normals,std::vector<glm::vec2> texture_coords) {
@@ -158,43 +228,36 @@ std::vector<Vertex> generate_vertex_buffer(int terrain_size,std::vector<glm::vec
     }
     return vertices;
 } 
+
+
 int main()
 {
-    srand(time(0));
-    
+    srand(time(NULL));
     gstate.window = glfw_init(WIDTH, HEIGHT);
     glfwSetInputMode(gstate.window,GLFW_CURSOR,GLFW_CURSOR_DISABLED);
     glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
 
     float terrain_max_h = 200 , terrain_min_h = 0;
-    int terrain_size = 200;
+    int terrain_size = pow(2,9) + 1;    
+    int patch_size = 3;
+
     std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.8); 
-
-
-    
-
     std::vector<glm::vec3> positions(terrain_size*terrain_size,glm::vec3(0,0,0));
-    std::vector<glm::vec2> texture_coords(terrain_size*terrain_size,glm::vec2(0));
-    std::vector<uint32_t> indices;
-    std::vector<glm::vec3> normals;
-    std::vector<Vertex> points;
-    {
-        for (int x = 0; x < terrain_size; x++) {
-            for (int z = 0; z < terrain_size; z++) {
-                positions[x + z * terrain_size].x =  (float)(x - terrain_size / 2) * gstate.world_scale;
-                positions[x + z * terrain_size].y = height_map_data[x +z * terrain_size];
-                positions[x + z * terrain_size].z =  (float)(z - terrain_size / 2) * gstate.world_scale;
-            
-                texture_coords[x + z * terrain_size].x = (x / (float)terrain_size);
-                texture_coords[x + z * terrain_size].y = (z / (float)terrain_size);
-            }
-        }
+    std::vector<glm::vec2> texture_coords(terrain_size*terrain_size,glm::vec3(0,0,0));
+    for (int x = 0; x < terrain_size; x++) {
+        for (int z = 0; z < terrain_size; z++) {
+            positions[x + z * terrain_size].x =  (float)(x - terrain_size / 2.f) * gstate.world_scale;
+            positions[x + z * terrain_size].y = height_map_data[x + z * terrain_size];  
+            positions[x + z * terrain_size].z =  (float)(z - terrain_size / 2.f) * gstate.world_scale;
 
-        indices = generate_indices(terrain_size);
-        normals = generat_normals_from_indices(indices,positions);
-        points = generate_vertex_buffer(terrain_size,positions,normals,texture_coords);        
+            texture_coords[x + z * terrain_size].x = (x / (float)terrain_size);
+            texture_coords[x + z * terrain_size].y = (z / (float)terrain_size);            
+        }
     }
-   
+    std::vector<uint32_t> indices = generate_indices_geomipmapping(patch_size,terrain_size);
+    std::vector<glm::vec3> normals = generat_normals_from_indices_geomipmapping(patch_size,indices,positions);
+    std::vector<Vertex> points =  generate_vertex_buffer(terrain_size,positions,normals,texture_coords); 
+
     uint32_t vao;
     uint32_t vbo;
     uint32_t ebo;
@@ -221,6 +284,7 @@ int main()
         glEnableVertexAttribArray(1);
         glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(Vertex), (void*)(6 * sizeof(float)));
         glEnableVertexAttribArray(2);
+
 
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
         glBindBuffer(GL_ARRAY_BUFFER, 0);
@@ -253,7 +317,7 @@ int main()
 
     }
 
-    gstate.camera = Camera(glm::vec3(0,300,10),glm::vec3(0,-1,-1),glm::vec3(0,1,0));
+    gstate.camera = Camera(glm::vec3(0,300,10),glm::vec3(0,0,0),glm::vec3(0,1,0));
 
     glEnable(GL_DEPTH_TEST);
     // glPolygonMode(GL_FRONT_AND_BACK,GL_LINE);
@@ -268,8 +332,6 @@ int main()
 
         glm::mat4 mtx_view = gstate.camera.get_view_matrix();
         
-        shader.enable();
-        shader.set_mat4x4("mtx_view",glm::value_ptr(mtx_view));
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D,snow_texture.ID);        
@@ -279,9 +341,17 @@ int main()
         glBindTexture(GL_TEXTURE_2D,ground_texture.ID);        
         glActiveTexture(GL_TEXTURE3);
         glBindTexture(GL_TEXTURE_2D,desert_texture.ID);        
+        shader.enable();
+        shader.set_mat4x4("mtx_view",glm::value_ptr(mtx_view));
 
-        glDrawElements(GL_TRIANGLES,indices.size(),GL_UNSIGNED_INT,indices.data());
         glBindVertexArray(vao);
+        for (int z = 0; z < terrain_size - 1; z += (patch_size - 1)) {
+            for (int x = 0; x < terrain_size - 1; x += (patch_size - 1)) {
+                int base_vertex = x + z * terrain_size;
+                glDrawElementsBaseVertex(GL_TRIANGLES,indices.size(),GL_UNSIGNED_INT,indices.data(),base_vertex);
+            }
+        }
+
 
         glfwSwapBuffers(gstate.window);
         glClearColor(0., 0., 0., 1.);

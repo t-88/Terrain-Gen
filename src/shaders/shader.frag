@@ -59,4 +59,5 @@ void main() {
 
 
    FragColor = (diffuse + ambiant) * color;
+   // FragColor = vec4(1.f);
 }

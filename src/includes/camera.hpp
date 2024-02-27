@@ -22,7 +22,7 @@ public:
     float last_x = 0;
     float last_y = 0;
 
-    float yaw , pitch = 0;
+    float yaw  = 0, pitch = 0;
     float sensitivity = 0.1;
 
     ~Camera();

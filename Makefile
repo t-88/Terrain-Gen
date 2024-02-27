@@ -9,7 +9,7 @@ C_OBJS = $(C_SRCS:%.c=%.o_c)
 
 
 main: $(CPP_OBJS) $(C_OBJS)
-	g++  src/main.cpp $(INCLUDES) $(LIBS) $(C_OBJS) $(CPP_OBJS) -o build/main 
+	g++ -g src/main.cpp $(INCLUDES) $(LIBS) $(C_OBJS) $(CPP_OBJS) -o build/main 
 	build/main
 
 %.o_cpp: %.cpp
