@@ -22,13 +22,14 @@
 
 static const int WIDTH = 800;
 static const int HEIGHT = 600;
-static const float NEAR_PLANE = 0.1;
+static const float NEAR_PLANE = 0.01;
 static const float FAR_PLANE = 1000.;
 
 typedef struct GlobalState {
     GLFWwindow* window;
     Camera camera;
     int world_scale = 2;
+    int patch_size = 3;
 
     GlobalState() {}
     ~GlobalState() {}
@@ -229,6 +230,35 @@ std::vector<Vertex> generate_vertex_buffer(int terrain_size,std::vector<glm::vec
     return vertices;
 } 
 
+bool point_inside_viewfrustum(const glm::vec3& p,const glm::mat4& view_proj) {
+    glm::vec4 clip_space_point =  view_proj * glm::vec4(p,1.f);
+    return clip_space_point.x >= -clip_space_point.w &&
+           clip_space_point.y >= -clip_space_point.w &&
+           clip_space_point.z >= -clip_space_point.w &&
+           clip_space_point.x <=  clip_space_point.w &&
+           clip_space_point.y <=  clip_space_point.w &&
+           clip_space_point.z <=  clip_space_point.w;
+
+}
+bool inside_viewfrustum_viewspace(const std::vector<float>& height_map,int terrain_size,int x , int z,const glm::mat4& view_proj) {
+    int x0 = x;
+    int x1 = x + gstate.patch_size - 1;
+    int z0 = z;
+    int z1 = z + gstate.patch_size - 1;
+
+    glm::vec3 p00 = glm::vec3(x0 ,height_map[x0 + z0 * terrain_size] ,z0 ); 
+    glm::vec3 p10 = glm::vec3(x0 ,height_map[x0 + z1 * terrain_size] ,z1 ); 
+    glm::vec3 p11 = glm::vec3(x1 ,height_map[x1 + z1 * terrain_size] ,z1 ); 
+    glm::vec3 p01 = glm::vec3(x1 ,height_map[x1 + z0 * terrain_size] ,z0 ); 
+
+
+
+    return point_inside_viewfrustum(p00,view_proj) || 
+           point_inside_viewfrustum(p10,view_proj) ||
+           point_inside_viewfrustum(p11,view_proj) ||
+           point_inside_viewfrustum(p01,view_proj);
+
+}
 
 int main()
 {
@@ -239,7 +269,9 @@ int main()
 
     float terrain_max_h = 200 , terrain_min_h = 0;
     int terrain_size = pow(2,9) + 1;    
-    int patch_size = 3;
+
+    gstate.patch_size = 17;
+    int patch_size = gstate.patch_size;
 
     std::vector<float> height_map_data = TerrainGenerator::gen_fault_formation(terrain_size,200,terrain_max_h,terrain_min_h,0.8); 
     std::vector<glm::vec3> positions(terrain_size*terrain_size,glm::vec3(0,0,0));
@@ -266,6 +298,9 @@ int main()
     Texture grass_texture;
     Texture desert_texture;
     Texture ground_texture;
+    
+    glm::mat4 mtx_proj = glm::perspective<float>(glm::radians(45.f),(float) WIDTH / HEIGHT,NEAR_PLANE,FAR_PLANE);
+
     {
         glGenVertexArrays(1, &vao);
         glGenBuffers(1, &vbo);
@@ -293,13 +328,12 @@ int main()
         shader.read_files("src/shaders/shader.vert", "src/shaders/shader.frag");
     
         shader.enable();
-        glm::mat4 mtx_proj = glm::perspective<float>(glm::radians(45.f),(float) WIDTH / HEIGHT,NEAR_PLANE,FAR_PLANE);
-        glm::mat4 mtx_model = glm::translate(glm::mat4(1),glm::vec3(0,0,0));
+        glm::mat4 mtx_model = glm::mat4(1);
 
         shader.set_mat4x4("mtx_proj",glm::value_ptr(mtx_proj));
         shader.set_mat4x4("mtx_model",glm::value_ptr(mtx_model));        
         shader.set_float("max_h",terrain_max_h);        
-        shader.set_float("min_h",terrain_min_h - 150); 
+        shader.set_float("min_h",terrain_min_h ); 
 
         glm::vec3 light_dir = glm::normalize(glm::vec3(1,1,1));
         shader.set_vec3("light_dir",{light_dir[0],light_dir[1],light_dir[2]}); 
@@ -331,6 +365,7 @@ int main()
 
 
         glm::mat4 mtx_view = gstate.camera.get_view_matrix();
+        glm::mat4 mtx_view_proj = mtx_proj * mtx_view; 
         
 
         glActiveTexture(GL_TEXTURE0);
@@ -354,7 +389,7 @@ int main()
 
 
         glfwSwapBuffers(gstate.window);
-        glClearColor(0., 0., 0., 1.);
+        glClearColor(178./ 255, 1., 1., 1.);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     }
 
