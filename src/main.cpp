@@ -268,7 +268,7 @@ int main()
     glfwSetCursorPos(gstate.window,WIDTH / 2.f,HEIGHT / 2.f);
 
     float terrain_max_h = 200 , terrain_min_h = 0;
-    int terrain_size = pow(2,9) + 1;    
+    int terrain_size = pow(2,10) + 1;    
 
     gstate.patch_size = 17;
     int patch_size = gstate.patch_size;
